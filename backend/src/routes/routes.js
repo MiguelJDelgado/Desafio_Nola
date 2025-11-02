@@ -13,7 +13,7 @@ router.get("/analytics/delivery-times", SalesAnalyticsController.deliveryTimes);
 router.get("/analytics/sales-by-day-of-week", SalesAnalyticsController.salesByDayOfWeek);
 
 router.get("/analytics/top-products", ProductAnalyticsController.topProducts);
-router.get("/analytics/top-categories", ProductAnalyticsController.topCategories);
+router.get("/analytics/top-categories-by-store", ProductAnalyticsController.topCategoriesByStore);
 
 router.get("/analytics/recurring-customers", CustomerAnalyticsController.recurringCustomers);
 
