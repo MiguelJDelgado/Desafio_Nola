@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { createGlobalStyle } from 'styled-components'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Dashboard from './routes/Dashboard'
+import Analytics from './routes/Analytics'
 
 const GlobalStyle = createGlobalStyle`
   * {
@@ -42,6 +43,7 @@ createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path='/' element={<Dashboard />}/>
         <Route path='/dashboard' element={<Dashboard />}/>
+        <Route path='/analytics' element={<Analytics />}/>
       </Routes>
     </BrowserRouter>
   </StrictMode>,
