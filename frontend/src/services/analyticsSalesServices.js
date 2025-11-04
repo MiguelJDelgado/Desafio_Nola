@@ -22,5 +22,8 @@ export const salesByHour = (params = {}) =>
 export const topStores = (params = {}) =>
   api.get("/analytics/top-stores", { params }).then(r => r.data);
 
+export const profitMarginByProduct = (params = {}) =>
+  api.get("/analytics/profit-margin-by-product", { params }).then(r => r.data);
+
 export const salesBySubBrand = (params = {}) =>
   api.get("/analytics/sales-by-sub-brand", { params }).then(r => r.data);
