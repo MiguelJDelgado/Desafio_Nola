@@ -1,21 +1,13 @@
 import styled from 'styled-components';
-import { NavLink } from 'react-router-dom'; 
+import { NavLink, Link } from 'react-router-dom'; 
 import Dashboard from '../../assets/dashboard.png';
-import Clientes from '../../assets/clientes.png';
 import Analytics from '../../assets/analytics.png';
-import Produtos from '../../assets/produtos.png';
-import Estoque from '../../assets/estoque.png';
-import Lojas from '../../assets/lojas.png';
 import sidebar from '../../assets/sidebar.png';
 import profile from '../../assets/profile.png';
 
 const opcoesMenu = [
   { texto: 'Dashboard', icone: Dashboard },
   { texto: 'Analytics', icone: Analytics },
-  { texto: 'Produtos', icone: Produtos },
-  { texto: 'Estoque', icone: Estoque},
-  { texto: 'Lojas/Canais', icone: Lojas },
-  { texto: 'Clientes', icone: Clientes }
 ];
 
 const SidebarContainer = styled.aside`
@@ -43,8 +35,13 @@ const Header = styled.div`
 const UserIcon = styled.img`
   width: 35px;
   height: 35px;
-`;
+  cursor: pointer;
+  transition: transform 0.2s;
 
+  &:hover {
+    transform: scale(1.2);
+  }
+`;
 const UserInfo = styled.div`
   display: ${({ isOpen }) => (isOpen ? "flex" : "none")};
   flex-direction: column;
@@ -125,7 +122,9 @@ function Sidebar({ isOpen, onToggle }) {
     <SidebarContainer isOpen={isOpen}>
       <Header isOpen={isOpen}>
         <UserSection>
-          <UserIcon src={profile} alt="Usuário" />
+          <Link to="/login">
+            <UserIcon src={profile} alt="Usuário" />
+          </Link>
           <UserInfo isOpen={isOpen}>
             <strong>Maria</strong>
             <span>Administrador</span>
@@ -152,4 +151,3 @@ function Sidebar({ isOpen, onToggle }) {
   );
 }
 export default Sidebar;
-2
