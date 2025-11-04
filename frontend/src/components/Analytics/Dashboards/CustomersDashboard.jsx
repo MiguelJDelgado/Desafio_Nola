@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 import {
   LineChart,
@@ -14,12 +14,21 @@ import {
   Legend,
 } from "recharts";
 
-// ----- STYLED COMPONENTS -----
+import {
+  newCustomers,
+  activeInactiveCustomers,
+  genderDistribution,
+  ageDistribution,
+  customerRetention,
+} from "../../../services/analyticsCustomersServices";
+
 const ChartsRow = styled.div`
   display: flex;
   gap: 30px;
   flex-wrap: wrap;
   margin-bottom: 35px;
+  margin-left: 20px;
+  margin-top: 35px;
 `;
 
 const ChartBox = styled.div`
@@ -40,111 +49,89 @@ const SectionTitle = styled.h2`
   color: #333;
 `;
 
-const FilterSelect = styled.select`
-  margin-bottom: 10px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-`;
+const COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#e11d48", "#3b82f6", "#8b5cf6"];
 
-// ----- MOCK DATA -----
-const totalCustomersData = [
-  { day: "01/10", value: 120 },
-  { day: "02/10", value: 135 },
-  { day: "03/10", value: 150 },
-  { day: "04/10", value: 160 },
-];
-
-const genderDistributionData = [
-  { name: "Masculino", value: 55 },
-  { name: "Feminino", value: 40 },
-  { name: "Outro", value: 5 },
-];
-
-const ageDistributionData = [
-  { name: "18-25", value: 30 },
-  { name: "26-35", value: 50 },
-  { name: "36-45", value: 25 },
-  { name: "46-60", value: 15 },
-];
-
-const activeInactiveData = [
-  { name: "Ativos", value: 80 },
-  { name: "Inativos", value: 20 },
-];
-
-const retentionData = [
-  { month: "Jan", retained: 90 },
-  { month: "Feb", retained: 75 },
-  { month: "Mar", retained: 60 },
-  { month: "Apr", retained: 55 },
-  { month: "May", retained: 50 },
-  { month: "Jun", retained: 48 },
-  { month: "Jul", retained: 45 },
-  { month: "Aug", retained: 43 },
-];
-
-const COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#e11d48"];
-
-// ----- COMPONENT -----
 function CustomersDashboard() {
-  const [selectedGenderFilter, setSelectedGenderFilter] = useState("all");
+  const [storeFilter, /*setStoreFilter*/] = useState(1);
+  const [totalCustomersData, setTotalCustomersData] = useState([]);
+  const [genderData, setGenderData] = useState([]);
+  const [ageData, setAgeData] = useState([]);
+  const [activeInactiveData, setActiveInactiveData] = useState([]);
+  const [retentionData, setRetentionData] = useState([]);
+
+  const loadTotalCustomers = async () => {
+    try {
+      const data = await newCustomers({ startDate: "2025-07-01", endDate: "2025-10-31" });
+      const grouped = data.reduce((acc, cur) => {
+        const day = new Date(cur.registration_date).toLocaleDateString("pt-BR");
+        acc[day] = (acc[day] || 0) + 1;
+        return acc;
+      }, {});
+      let arrayData = Object.entries(grouped).map(([day, value]) => ({ day, value }));
+      arrayData.sort((a, b) => new Date(a.day.split("/").reverse().join("-")) - new Date(b.day.split("/").reverse().join("-")));
+      arrayData = arrayData.slice(-7);
+      setTotalCustomersData(arrayData);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadGenderDistribution = async () => {
+    try {
+      const data = await genderDistribution({ startDate: "2025-07-01", endDate: "2025-10-31" });
+      const genderMap = { M: "Masculino", F: "Feminino", NB: "Não Binário", O: "Outros" };
+      const formatted = data.map(d => ({ name: genderMap[d.gender] || d.gender, value: parseInt(d.total) }));
+      setGenderData(formatted);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadAgeDistribution = async () => {
+    try {
+      const data = await ageDistribution();
+      setAgeData(data.map(d => ({ name: d.age_range, value: parseInt(d.total) })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadActiveInactive = async () => {
+    try {
+      const data = await activeInactiveCustomers({ store_id: storeFilter, startDate: "2025-07-01", endDate: "2025-10-31" });
+      setActiveInactiveData([
+        { name: "Ativos", value: parseInt(data.active) },
+        { name: "Inativos", value: parseInt(data.inactive) },
+      ]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadRetention = async () => {
+    try {
+      const data = await customerRetention({ store_id: storeFilter });
+      setRetentionData(data.map(d => ({
+        month: new Date(d.month + "-01").toLocaleString("pt-BR", { month: "short" }),
+        retained: parseInt(d.retained_customers),
+      })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    loadTotalCustomers();
+    loadGenderDistribution();
+    loadAgeDistribution();
+    loadActiveInactive();
+    loadRetention();
+  }, [storeFilter]);
 
   return (
     <div>
       <ChartsRow>
-        <ChartBox>
-          <SectionTitle>Total de Clientes</SectionTitle>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={totalCustomersData} margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartBox>
-
-        <ChartBox>
-          <SectionTitle>Distribuição por Gênero</SectionTitle>
-          <FilterSelect value={selectedGenderFilter} onChange={(e) => setSelectedGenderFilter(e.target.value)}>
-            <option value="all">Todos</option>
-            <option value="male">Masculino</option>
-            <option value="female">Feminino</option>
-          </FilterSelect>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={genderDistributionData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80} label>
-                {genderDistributionData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Legend />
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartBox>
-
-        <ChartBox>
-          <SectionTitle>Faixa Etária</SectionTitle>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={ageDistributionData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80} label>
-                {ageDistributionData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Legend />
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartBox>
-      </ChartsRow>
-
-      <ChartsRow>
-        <ChartBox>
+        <ChartBox style={{ flex: 1 }}>
           <SectionTitle>Clientes Ativos vs Inativos</SectionTitle>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
@@ -160,17 +147,63 @@ function CustomersDashboard() {
         </ChartBox>
 
         <ChartBox>
-          <SectionTitle>Retenção de Clientes (últimos 8 meses)</SectionTitle>
+          <SectionTitle>Faixa Etária</SectionTitle>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie data={ageData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80} label>
+                {ageData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Legend />
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartBox>
+
+        <ChartBox style={{ flex: 1 }}>
+          <SectionTitle>Distribuição por Gênero</SectionTitle>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie data={genderData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80} label>
+                {genderData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Legend />
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartBox>
+      </ChartsRow>
+
+      <ChartsRow>
+        <ChartBox>
+          <SectionTitle>Novos clientes (Últimos 7 dias)</SectionTitle>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={totalCustomersData} margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="day" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} dot={{ r: 3 }} name="Clientes"/>
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartBox>
+
+        <ChartBox>
+          <SectionTitle>Clientes Pagantes (Mês)</SectionTitle>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={retentionData} margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
-              <YAxis unit="%" />
+              <YAxis domain={[0, 1400]} />
               <Tooltip />
-              <Line type="monotone" dataKey="retained" stroke="#4f46e5" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="retained" stroke="#4f46e5" strokeWidth={2} dot={{ r: 3 }} name="Clientes"/>
             </LineChart>
           </ResponsiveContainer>
         </ChartBox>
+
       </ChartsRow>
     </div>
   );

@@ -26,6 +26,8 @@ const ChartsRow = styled.div`
   display: flex;
   gap: 30px;
   flex-wrap: wrap;
+  margin-left: 20px;
+  margin-top: 35px;
 `;
 
 const ChartBox = styled.div`
@@ -86,9 +88,8 @@ const FilterSelect = styled.select`
 `;
 
 function CouponsDashboard() {
-  const COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#9115e4ff"];
+  const COLORS = ["#0073f7ff", "#10b981", "#f59e0b", "#ef4444", "#8f16f1ff", "#f1166aff",];
 
-  // Filtro de desconto - 5 primeiras lojas
   const storeOptions = [
     { id: 1, name: "Loja 1" },
     { id: 2, name: "Loja 2" },
@@ -99,7 +100,6 @@ function CouponsDashboard() {
 
   const [storeTotalDiscounts, setStoreTotalDiscounts] = useState(storeOptions[0].id);
 
-  // Dados do dashboard
   const [totalSalesValue, setTotalSalesValue] = useState(0);
   const [totalDiscountValue, setTotalDiscountValue] = useState(0);
   const [couponDistributionData, setCouponDistributionData] = useState([]);
@@ -107,15 +107,12 @@ function CouponsDashboard() {
 
   const loadData = async () => {
     try {
-      // Total de vendas com cupom
       const salesRes = await totalSalesWithCoupon();
       setTotalSalesValue(Number(salesRes.total_sales_with_coupon));
 
-      // Total de descontos (filtrável por loja)
       const discountRes = await totalDiscountGiven({ store_id: storeTotalDiscounts });
       setTotalDiscountValue(Number(discountRes.total_discount));
 
-      // Distribuição de vendas com cupom
       const distributionRes = await couponSalesDistribution();
       setCouponDistributionData(
         distributionRes.map((item) => ({
@@ -124,7 +121,6 @@ function CouponsDashboard() {
         }))
       );
 
-      // Top cupons mais usados
       const topCouponsRes = await topUsedCoupons();
       setMostUsedCoupons(
         topCouponsRes.map((item) => ({
@@ -149,13 +145,11 @@ function CouponsDashboard() {
   return (
     <DashboardContainer>
       <ChartsRow>
-        {/* Total de Vendas com Cupom */}
         <ChartBox>
           <SectionTitle>Total de Vendas com Cupom</SectionTitle>
           <KpiBox>{totalSalesValue}</KpiBox>
         </ChartBox>
 
-        {/* Total de Descontos Concedidos (R$) */}
         <ChartBox>
           <SectionTitle>Total de Descontos Concedidos (R$)</SectionTitle>
           <FilterSelect
@@ -169,7 +163,6 @@ function CouponsDashboard() {
           <KpiBox>R$ {totalDiscountValue}</KpiBox>
         </ChartBox>
 
-        {/* Distribuição de Vendas com Cupom */}
         <ChartBox>
           <SectionTitle>Distribuição de Vendas com Cupom</SectionTitle>
           <ResponsiveContainer width="100%" height={300}>
@@ -193,7 +186,6 @@ function CouponsDashboard() {
         </ChartBox>
       </ChartsRow>
 
-      {/* Tabela de Cupons Mais Usados */}
       <ChartBox style={{ flex: "1 1 100%" }}>
         <SectionTitle>Cupons Mais Usados</SectionTitle>
         <CouponsTable>

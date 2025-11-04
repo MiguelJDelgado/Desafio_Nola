@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
+import { format } from "date-fns";
+
 import {
   ResponsiveContainer,
   BarChart,
@@ -13,7 +15,15 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import {
+  revenueByPaymentMethod,
+  voucherPayment,
+  avgTicketByPayment,
+  lastCancelledOrRefunded,
+  topPayments,
+} from "../../../services/analyticsPaymentsService";
 
+// --- Estilos ---
 const DashboardContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -24,6 +34,8 @@ const ChartsRow = styled.div`
   display: flex;
   gap: 30px;
   flex-wrap: wrap;
+  margin-left: 20px;
+  margin-top: 35px;
 `;
 
 const ChartBox = styled.div`
@@ -82,92 +94,140 @@ const FilterSelect = styled.select`
   font-size: 14px;
 `;
 
+const formatCurrencyShort = (value) => {
+  if (!value) return "R$ 0";
+  if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
+  return `R$ ${parseFloat(value).toFixed(0)}`;
+};
+
+const formatCurrencyFull = (value) => {
+  if (!value) return "R$ 0";
+  return parseFloat(value).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
 function PaymentsDashboard() {
-  const COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#3b82f6"];
+  const COLORS = ["#8017e2ff", "#10b981", "#f59e0b", "#ef4444", "#3b82f6"];
   const mockStores = ["Todas", "Loja 1", "Loja 2", "Loja 3", "Loja 4", "Loja 5"];
-  const [selectedStore, setSelectedStore] = useState("Todas");
 
-  // Mock Data
-  const revenueByPaymentType = [
-    { name: "Cartão Crédito", value: 1200000 },
-    { name: "Cartão Débito", value: 800000 },
-    { name: "Pix", value: 500000 },
-    { name: "Dinheiro", value: 300000 },
-    { name: "Vale Refeição", value: 100000 },
-  ];
+  const [filterRevenue, setFilterRevenue] = useState("Todas");
+  const [filterTopPayments, setFilterTopPayments] = useState("Todas");
+  const [filterAvgTicket, setFilterAvgTicket] = useState("Todas");
+  const [filterCancelled, setFilterCancelled] = useState("Todas");
 
-  const onlinePaymentPercentage = 75; // %
-  const topPaymentMethods = [
-    { name: "Cartão Crédito", count: 520 },
-    { name: "Cartão Débito", count: 430 },
-    { name: "Pix", count: 310 },
-    { name: "Dinheiro", count: 120 },
-    { name: "Vale Refeição", count: 60 },
-  ];
+  const [revenueData, setRevenueData] = useState([]);
+  const [onlinePaymentRate, setOnlinePaymentRate] = useState(0);
+  const [topPaymentMethodsData, setTopPaymentMethodsData] = useState([]);
+  const [avgTicketData, setAvgTicketData] = useState([]);
+  const [cancelledOrdersData, setCancelledOrdersData] = useState([]);
 
-  const canceledOrders = [
-    { order: 201, customer: "Ana", payment: "Pix", status: "Cancelado", amount: 120, store: "Loja 1" },
-    { order: 202, customer: "Bruno", payment: "Cartão Crédito", status: "Estornado", amount: 200, store: "Loja 2" },
-    { order: 203, customer: "Carlos", payment: "Dinheiro", status: "Cancelado", amount: 80, store: "Loja 3" },
-    { order: 204, customer: "Daniela", payment: "Pix", status: "Estornado", amount: 150, store: "Loja 1" },
-    { order: 205, customer: "Eduardo", payment: "Cartão Débito", status: "Cancelado", amount: 95, store: "Loja 2" },
-    { order: 206, customer: "Fernanda", payment: "Pix", status: "Cancelado", amount: 130, store: "Loja 3" },
-  ];
+  const loadRevenue = async (store) => {
+    try {
+      const store_id = store === "Todas" ? null : mockStores.indexOf(store);
+      const data = await revenueByPaymentMethod({ store_id });
+      setRevenueData(
+        data.map(d => ({ name: d.payment_method, value: parseFloat(d.total_revenue) }))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
+  const loadOnlinePaymentRate = async () => {
+    try {
+      const data = await voucherPayment();
+      setOnlinePaymentRate(parseFloat(data.online_rate).toFixed(2));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
-  const avgTicketByPayment = [
-    { name: "Cartão Crédito", value: 90 },
-    { name: "Cartão Débito", value: 75 },
-    { name: "Pix", value: 60 },
-    { name: "Dinheiro", value: 50 },
-    { name: "Vale Refeição", value: 45 },
-  ];
+  const loadTopPayments = async (store) => {
+    try {
+      const store_id = store === "Todas" ? null : mockStores.indexOf(store);
+      const data = await topPayments({ store_id, limit: 5 });
+      setTopPaymentMethodsData(
+        data.map(d => ({ name: d.payment_method, count: parseInt(d.total_usage) }))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadAvgTicket = async (store) => {
+    try {
+      const store_id = store === "Todas" ? null : mockStores.indexOf(store);
+      const data = await avgTicketByPayment({ store_id });
+      setAvgTicketData(
+        data.map(d => ({ name: d.payment_method, value: parseFloat(d.avg_ticket) }))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadCancelledOrders = async (store) => {
+    try {
+      const store_id = store === "Todas" ? null : mockStores.indexOf(store);
+      const data = await lastCancelledOrRefunded({ store_id });
+      setCancelledOrdersData(
+        data.map(d => ({
+          order: d.order_id ?? "Não Informado",
+          customer: d.customer ?? "Não Informado",
+          payment: d.payment_method ?? "Não Informado",
+          amount: d.total_amount ?? "Não Informado",
+          cancelled_at: d.cancelled_at ? new Date(d.cancelled_at) : null,
+        }))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => { loadRevenue(filterRevenue); }, [filterRevenue]);
+  useEffect(() => { loadTopPayments(filterTopPayments); }, [filterTopPayments]);
+  useEffect(() => { loadAvgTicket(filterAvgTicket); }, [filterAvgTicket]);
+  useEffect(() => { loadCancelledOrders(filterCancelled); }, [filterCancelled]);
+  useEffect(() => { loadOnlinePaymentRate(); }, []);
 
   return (
     <DashboardContainer>
-      {/* Linha de gráficos/KPIs */}
       <ChartsRow>
         <ChartBox>
           <SectionTitle>Receita por Tipo de Pagamento</SectionTitle>
-          <FilterSelect
-            value={selectedStore}
-            onChange={(e) => setSelectedStore(e.target.value)}
-          >
-            {mockStores.map((store) => (
-              <option key={store} value={store}>{store}</option>
-            ))}
+          <FilterSelect value={filterRevenue} onChange={e => setFilterRevenue(e.target.value)}>
+            {mockStores.map(store => <option key={store}>{store}</option>)}
           </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={revenueByPaymentType} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <BarChart data={revenueData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#4f46e5" />
+              <XAxis dataKey="name" angle={-15} textAnchor="end" interval={0} tick={{ fontSize: 10 }} />
+              <YAxis tickFormatter={formatCurrencyShort} />
+              <Tooltip formatter={value => formatCurrencyFull(value)} />
+              <Bar dataKey="value" fill="#4f46e5" name="Valor"/>
             </BarChart>
           </ResponsiveContainer>
         </ChartBox>
 
         <ChartBox>
-          <SectionTitle>% de Pagamentos Online</SectionTitle>
-          <KpiBox>{onlinePaymentPercentage}%</KpiBox>
+          <SectionTitle>% de Pagamentos Por Vales</SectionTitle>
+          <KpiBox>{onlinePaymentRate}%</KpiBox>
         </ChartBox>
 
         <ChartBox>
           <SectionTitle>Top 5 Formas de Pagamento</SectionTitle>
+          <FilterSelect value={filterTopPayments} onChange={e => setFilterTopPayments(e.target.value)}>
+            {mockStores.map(store => <option key={store}>{store}</option>)}
+          </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
-              <Pie
-                data={topPaymentMethods}
-                dataKey="count"
-                nameKey="name"
-                innerRadius={40}
-                outerRadius={80}
-                label
-              >
-                {topPaymentMethods.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
+              <Pie data={topPaymentMethodsData} dataKey="count" nameKey="name" innerRadius={40} outerRadius={80} label>
+                {topPaymentMethodsData.map((entry, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
               </Pie>
               <Legend />
               <Tooltip />
@@ -177,56 +237,49 @@ function PaymentsDashboard() {
 
         <ChartBox>
           <SectionTitle>Ticket Médio por Tipo de Pagamento</SectionTitle>
+          <FilterSelect value={filterAvgTicket} onChange={e => setFilterAvgTicket(e.target.value)}>
+            {mockStores.map(store => <option key={store}>{store}</option>)}
+          </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={avgTicketByPayment} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <BarChart data={avgTicketData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
+              <XAxis dataKey="name" angle={-15} textAnchor="end" interval={0} tick={{ fontSize: 10 }} />
               <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#10b981" />
+              <Tooltip formatter={value => formatCurrencyFull(value)} />
+              <Bar dataKey="value" fill="#10b981" name="Valor"/>
             </BarChart>
           </ResponsiveContainer>
         </ChartBox>
       </ChartsRow>
 
-      {/* Tabela de Pedidos Cancelados/Estornados */}
       <ChartBox style={{ flex: "1 1 100%" }}>
-      <SectionTitle>Últimos 5 Pedidos Cancelados ou Estornados</SectionTitle>
-       <FilterSelect
-        value={selectedStore}
-        onChange={(e) => setSelectedStore(e.target.value)}
-       >
-        {mockStores.map((store) => (
-        <option key={store} value={store}>{store}</option>
-        ))}
-            </FilterSelect>
-            <OrdersTable>
-                <thead>
-                <tr>
-                    <TableHeader>Pedido</TableHeader>
-                    <TableHeader>Cliente</TableHeader>
-                    <TableHeader>Pagamento</TableHeader>
-                    <TableHeader>Status</TableHeader>
-                    <TableHeader>Valor</TableHeader>
-                </tr>
-                </thead>
-                <tbody>
-                {canceledOrders
-                    .filter(order => selectedStore === "Todas" || order.store === selectedStore)
-                    .slice(0, 5) // últimos 5 pedidos
-                    .map((order) => (
-                    <tr key={order.order}>
-                        <TableCell>{order.order}</TableCell>
-                        <TableCell>{order.customer}</TableCell>
-                        <TableCell>{order.payment}</TableCell>
-                        <TableCell>{order.status}</TableCell>
-                        <TableCell>{order.amount}</TableCell>
-                    </tr>
-                ))}
-                </tbody>
-            </OrdersTable>
-        </ChartBox>
-
+        <SectionTitle>Últimos 5 Pedidos Cancelados ou Estornados</SectionTitle>
+        <FilterSelect value={filterCancelled} onChange={e => setFilterCancelled(e.target.value)}>
+          {mockStores.map(store => <option key={store}>{store}</option>)}
+        </FilterSelect>
+        <OrdersTable>
+          <thead>
+            <tr>
+              <TableHeader>Pedido</TableHeader>
+              <TableHeader>Cliente</TableHeader>
+              <TableHeader>Pagamento</TableHeader>
+              <TableHeader>Valor</TableHeader>
+              <TableHeader>Data do Cancelamento</TableHeader>
+            </tr>
+          </thead>
+          <tbody>
+            {cancelledOrdersData.slice(0, 5).map(order => (
+              <tr key={order.order}>
+                <TableCell>{order.order}</TableCell>
+                <TableCell>{order.customer}</TableCell>
+                <TableCell>{order.payment}</TableCell>
+                <TableCell>{order.amount !== "Não Informado" ? formatCurrencyFull(order.amount) : "Não Informado"}</TableCell>
+                <TableCell>{order.cancelled_at ? format(order.cancelled_at, "dd/MM/yyyy") : "Não Informado"}</TableCell>
+              </tr>
+            ))}
+          </tbody>
+        </OrdersTable>
+      </ChartBox>
     </DashboardContainer>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 import {
   BarChart,
@@ -9,6 +9,13 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import {
+  averageDeliveryTime,
+  averageProductionTime,
+  performanceByCarrier,
+  deliveryRevenueByChannel,
+  topCities,
+} from "../../../services/analyticsDeliveryServices";
 
 const DashboardContainer = styled.div`
   display: flex;
@@ -20,6 +27,8 @@ const ChartsRow = styled.div`
   display: flex;
   gap: 30px;
   flex-wrap: wrap;
+  margin-left: 20px;
+  margin-top: 35px;
 `;
 
 const ChartBox = styled.div`
@@ -28,7 +37,7 @@ const ChartBox = styled.div`
   min-height: 300px;
   background: white;
   border-radius: 10px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -64,147 +73,247 @@ const TableCell = styled.td`
   border-bottom: 1px solid #eee;
 `;
 
+const formatCurrencyShort = (value) => {
+  if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
+  return `R$ ${value.toFixed(0)}`;
+};
+
+const formatCurrencyFull = (value) => {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+};
+
 function DeliveryDashboard() {
-  const mockStores = ["Todas", "Loja 1", "Loja 2", "Loja 3", "Loja 4"];
-
-  // Mock Data por loja para cada gráfico
-  const mockProductionTime = {
-    Todas: [
-      { day: "Seg", value: 20 },
-      { day: "Ter", value: 22 },
-      { day: "Qua", value: 19 },
-      { day: "Qui", value: 25 },
-      { day: "Sex", value: 23 },
-    ],
-    "Loja 1": [{ day: "Seg", value: 18 }, { day: "Ter", value: 21 }, { day: "Qua", value: 20 }, { day: "Qui", value: 24 }, { day: "Sex", value: 22 }],
-    "Loja 2": [{ day: "Seg", value: 25 }, { day: "Ter", value: 24 }, { day: "Qua", value: 22 }, { day: "Qui", value: 28 }, { day: "Sex", value: 26 }],
-    "Loja 3": [{ day: "Seg", value: 21 }, { day: "Ter", value: 23 }, { day: "Qua", value: 19 }, { day: "Qui", value: 26 }, { day: "Sex", value: 24 }],
-    "Loja 4": [{ day: "Seg", value: 20 }, { day: "Ter", value: 22 }, { day: "Qua", value: 18 }, { day: "Qui", value: 25 }, { day: "Sex", value: 21 }],
-  };
-
-  const mockDeliveryTime = {
-    Todas: [
-      { day: "Seg", value: 35 },
-      { day: "Ter", value: 38 },
-      { day: "Qua", value: 33 },
-      { day: "Qui", value: 40 },
-      { day: "Sex", value: 36 },
-    ],
-    "Loja 1": [{ day: "Seg", value: 32 }, { day: "Ter", value: 36 }, { day: "Qua", value: 34 }, { day: "Qui", value: 39 }, { day: "Sex", value: 35 }],
-    "Loja 2": [{ day: "Seg", value: 38 }, { day: "Ter", value: 41 }, { day: "Qua", value: 36 }, { day: "Qui", value: 44 }, { day: "Sex", value: 39 }],
-    "Loja 3": [{ day: "Seg", value: 34 }, { day: "Ter", value: 37 }, { day: "Qua", value: 33 }, { day: "Qui", value: 41 }, { day: "Sex", value: 36 }],
-    "Loja 4": [{ day: "Seg", value: 33 }, { day: "Ter", value: 36 }, { day: "Qua", value: 31 }, { day: "Qui", value: 38 }, { day: "Sex", value: 34 }],
-  };
-
-  const mockDeliveryRevenue = {
-    Todas: [
-      { channel: "iFood", value: 1164520 },
-      { channel: "Rappi", value: 604615 },
-      { channel: "Uber Eats", value: 276894 },
-    ],
-    "Loja 1": [{ channel: "iFood", value: 400000 }, { channel: "Rappi", value: 300000 }, { channel: "Uber Eats", value: 150000 }],
-    "Loja 2": [{ channel: "iFood", value: 350000 }, { channel: "Rappi", value: 200000 }, { channel: "Uber Eats", value: 100000 }],
-    "Loja 3": [{ channel: "iFood", value: 300000 }, { channel: "Rappi", value: 150000 }, { channel: "Uber Eats", value: 90000 }],
-    "Loja 4": [{ channel: "iFood", value: 200000 }, { channel: "Rappi", value: 100000 }, { channel: "Uber Eats", value: 70000 }],
-  };
-
-  const mockCourierPerformance = {
-    Todas: [
-      { courier: "Carlos", deliveries: 40, revenue: 50000 },
-      { courier: "Ana", deliveries: 35, revenue: 45000 },
-      { courier: "Bruno", deliveries: 30, revenue: 38000 },
-    ],
-    "Loja 1": [{ courier: "Carlos", deliveries: 12, revenue: 15000 }, { courier: "Ana", deliveries: 10, revenue: 12000 }, { courier: "Bruno", deliveries: 8, revenue: 9000 }],
-    "Loja 2": [{ courier: "Carlos", deliveries: 15, revenue: 18000 }, { courier: "Ana", deliveries: 12, revenue: 14000 }, { courier: "Bruno", deliveries: 10, revenue: 12000 }],
-    "Loja 3": [{ courier: "Carlos", deliveries: 8, revenue: 12000 }, { courier: "Ana", deliveries: 6, revenue: 10000 }, { courier: "Bruno", deliveries: 5, revenue: 8000 }],
-    "Loja 4": [{ courier: "Carlos", deliveries: 5, revenue: 7000 }, { courier: "Ana", deliveries: 4, revenue: 6000 }, { courier: "Bruno", deliveries: 3, revenue: 5000 }],
-  };
-
-  const mockTopCities = {
-    Todas: [
-      { city: "São Paulo", state: "SP", orders: 120, revenue: 580000 },
-      { city: "Sorocaba", state: "SP", orders: 85, revenue: 400000 },
-      { city: "Campinas", state: "SP", orders: 70, revenue: 350000 },
-      { city: "Barueri", state: "SP", orders: 50, revenue: 200000 },
-      { city: "Osasco", state: "SP", orders: 45, revenue: 180000 },
-    ],
-    "Loja 1": [
-      { city: "São Paulo", state: "SP", orders: 50, revenue: 240000 },
-      { city: "Sorocaba", state: "SP", orders: 20, revenue: 90000 },
-      { city: "Campinas", state: "SP", orders: 10, revenue: 50000 },
-    ],
-  };
+  const [stores, /*setStores*/] = useState(["Todas", "Loja 1", "Loja 2", "Loja 3", "Loja 4"]);
 
   const [storeProduction, setStoreProduction] = useState("Todas");
   const [storeDeliveryTime, setStoreDeliveryTime] = useState("Todas");
-  const [storeRevenue, setStoreRevenue] = useState("Todas");
   const [storeCourier, setStoreCourier] = useState("Todas");
-  const [storeCities, setStoreCities] = useState("Todas");
+
+  const [productionTimeData, setProductionTimeData] = useState([]);
+  const [deliveryTimeData, setDeliveryTimeData] = useState([]);
+  const [revenueData, setRevenueData] = useState([]);
+  const [courierPerformanceData, setCourierPerformanceData] = useState([]);
+  const [topCitiesData, setTopCitiesData] = useState([]);
+
+  const storeMap = {
+    "Loja 1": 1,
+    "Loja 2": 2,
+    "Loja 3": 3,
+    "Loja 4": 4,
+  };
+
+  const loadProductionTime = async (store) => {
+    try {
+      const store_id = storeMap[store] || null;
+      const data = await averageProductionTime({ store_id });
+      setProductionTimeData(
+        data.map((d) => ({
+          day: d.weekday.trim(),
+          value: parseFloat(d.avg_production_time),
+        }))
+      );
+    } catch (err) {
+      console.error("Erro ao buscar tempo médio de produção:", err);
+    }
+  };
+
+  const loadDeliveryTime = async (store) => {
+    try {
+      const store_id = storeMap[store] || null;
+      const data = await averageDeliveryTime({ store_id });
+      setDeliveryTimeData(
+        data.map((d) => ({
+          day: d.weekday.trim(),
+          value: parseFloat(d.avg_delivery_time),
+        }))
+      );
+    } catch (err) {
+      console.error("Erro ao buscar tempo médio de entrega:", err);
+    }
+  };
+
+  const loadRevenue = async () => {
+    try {
+      const data = await deliveryRevenueByChannel({});
+      setRevenueData(
+        data.map((d) => ({
+          channel: d.channel_name,
+          value: parseFloat(d.total_revenue),
+        }))
+      );
+    } catch (err) {
+      console.error("Erro ao buscar receita de delivery:", err);
+    }
+  };
+
+  const loadCourierPerformance = async (store) => {
+    try {
+      const store_id = storeMap[store] || null;
+      const data = await performanceByCarrier({ store_id });
+      setCourierPerformanceData(
+        data.map((d) => ({
+          courier: `Ent ${d.carrier_id}`,
+          deliveries: parseInt(d.total_deliveries),
+          success: parseFloat(d.success_rate),
+        }))
+      );
+    } catch (err) {
+      console.error("Erro ao buscar performance de couriers:", err);
+    }
+  };
+
+  const loadTopCities = async () => {
+    try {
+      const data = await topCities({});
+      setTopCitiesData(
+        data.map((c) => ({
+          city: c.city,
+          state: c.state,
+          orders: parseInt(c.total_orders),
+          revenue: parseFloat(c.total_revenue).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          }),
+        }))
+      );
+    } catch (err) {
+      console.error("Erro ao buscar cidades com mais pedidos:", err);
+    }
+  };
+
+  // --- useEffects ---
+  useEffect(() => {
+    loadProductionTime(storeProduction);
+  }, [storeProduction]);
+
+  useEffect(() => {
+    loadDeliveryTime(storeDeliveryTime);
+  }, [storeDeliveryTime]);
+
+  useEffect(() => {
+    loadRevenue();
+  }, []);
+
+  useEffect(() => {
+    loadCourierPerformance(storeCourier);
+  }, [storeCourier]);
+
+  useEffect(() => {
+    loadTopCities();
+  }, []);
 
   return (
     <DashboardContainer>
       <ChartsRow>
         <ChartBox>
           <SectionTitle>Tempo Médio de Produção (min)</SectionTitle>
-          <FilterSelect value={storeProduction} onChange={(e) => setStoreProduction(e.target.value)}>
-            {mockStores.map((s) => <option key={s} value={s}>{s}</option>)}
+          <FilterSelect
+            value={storeProduction}
+            onChange={(e) => setStoreProduction(e.target.value)}
+          >
+            {stores.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={mockProductionTime[storeProduction]}>
+            <BarChart data={productionTimeData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
+              <XAxis
+                dataKey="day"
+                angle={-22}
+                textAnchor="end"
+                interval={0}
+                tick={{ fontSize: 11 }}
+              />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="value" fill="#4f46e5" />
+              <Bar dataKey="value" fill="#4f46e5" name="Tempo"/>
             </BarChart>
           </ResponsiveContainer>
         </ChartBox>
 
         <ChartBox>
           <SectionTitle>Tempo Médio de Entrega (min)</SectionTitle>
-          <FilterSelect value={storeDeliveryTime} onChange={(e) => setStoreDeliveryTime(e.target.value)}>
-            {mockStores.map((s) => <option key={s} value={s}>{s}</option>)}
+          <FilterSelect
+            value={storeDeliveryTime}
+            onChange={(e) => setStoreDeliveryTime(e.target.value)}
+          >
+            {stores.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={mockDeliveryTime[storeDeliveryTime]}>
+            <BarChart data={deliveryTimeData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
+              <XAxis
+                dataKey="day"
+                angle={-22}
+                textAnchor="end"
+                interval={0}
+                tick={{ fontSize: 11 }}
+              />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="value" fill="#10b981" />
+              <Bar dataKey="value" fill="#10b981" name="Tempo"/>
             </BarChart>
           </ResponsiveContainer>
         </ChartBox>
 
         <ChartBox>
           <SectionTitle>Receita de Delivery</SectionTitle>
-          <FilterSelect value={storeRevenue} onChange={(e) => setStoreRevenue(e.target.value)}>
-            {mockStores.map((s) => <option key={s} value={s}>{s}</option>)}
-          </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={mockDeliveryRevenue[storeRevenue]}>
+            <BarChart data={revenueData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="channel" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#f59e0b" />
+              <XAxis
+                dataKey="channel"
+                angle={-20}
+                textAnchor="end"
+                interval={0}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis tickFormatter={formatCurrencyShort} />
+              <Tooltip formatter={(value) => formatCurrencyFull(value)} />
+              <Bar dataKey="value" fill="#f59e0b" name="Valor" />
             </BarChart>
           </ResponsiveContainer>
         </ChartBox>
 
         <ChartBox>
-          <SectionTitle>Performance dos Couriers</SectionTitle>
-          <FilterSelect value={storeCourier} onChange={(e) => setStoreCourier(e.target.value)}>
-            {mockStores.map((s) => <option key={s} value={s}>{s}</option>)}
+          <SectionTitle>Performance dos Entregadores</SectionTitle>
+          <FilterSelect
+            value={storeCourier}
+            onChange={(e) => setStoreCourier(e.target.value)}
+          >
+            {stores.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={mockCourierPerformance[storeCourier]}>
+            <BarChart data={courierPerformanceData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="courier" />
+              <XAxis
+                dataKey="courier"
+                angle={-22}
+                textAnchor="end"
+                interval={0}
+                tick={{ fontSize: 11 }}
+              />
               <YAxis />
               <Tooltip />
               <Bar dataKey="deliveries" fill="#4f46e5" name="Entregas" />
-              <Bar dataKey="revenue" fill="#10b981" name="Receita" />
+              <Bar dataKey="success" fill="#10b981" name="Taxa de Sucesso (%)" />
             </BarChart>
           </ResponsiveContainer>
         </ChartBox>
@@ -212,9 +321,6 @@ function DeliveryDashboard() {
 
       <ChartBox style={{ flex: "1 1 100%" }}>
         <SectionTitle>Cidades com Mais Pedidos</SectionTitle>
-        <FilterSelect value={storeCities} onChange={(e) => setStoreCities(e.target.value)}>
-          {mockStores.map((s) => <option key={s} value={s}>{s}</option>)}
-        </FilterSelect>
         <OrdersTable>
           <thead>
             <tr>
@@ -225,7 +331,7 @@ function DeliveryDashboard() {
             </tr>
           </thead>
           <tbody>
-            {mockTopCities[storeCities].map((c) => (
+            {topCitiesData.map((c) => (
               <tr key={c.city}>
                 <TableCell>{c.city}</TableCell>
                 <TableCell>{c.state}</TableCell>

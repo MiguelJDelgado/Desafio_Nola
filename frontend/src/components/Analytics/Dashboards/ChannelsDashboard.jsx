@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 import {
   PieChart,
@@ -14,6 +14,14 @@ import {
   CartesianGrid,
 } from "recharts";
 
+import {
+  salesCountByChannel,
+  avgTicketByChannel,
+  deliveryVsPresencial as getDeliveryVsPresencial,
+  deliveryRate as getDeliveryRate,
+  lastOrders as getLastOrders,
+} from "../../../services/analyticsChannelsServices";
+
 const DashboardContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -24,6 +32,8 @@ const ChartsRow = styled.div`
   display: flex;
   gap: 30px;
   flex-wrap: wrap;
+  margin-left: 20px;
+  margin-top: 35px;
 `;
 
 const ChartBox = styled.div`
@@ -95,79 +105,111 @@ const TableCell = styled.td`
 `;
 
 function ChannelsDashboard() {
-  const COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#3b82f6"];
-  const mockStores = ["Todas", "Loja 1", "Loja 2", "Loja 3", "Loja 4", "Loja 5"];
-  const [selectedStore, setSelectedStore] = useState("Todas");
+  const COLORS = ["#0073f7ff", "#10b981", "#f59e0b", "#ef4444", "#8f16f1ff", "#f1166aff",];
+  const stores = ["Loja 1", "Loja 2", "Loja 3", "Loja 4", "Loja 5"];
 
-  // Mock Data para gráficos
-  const revenueByChannel = [
-    { name: "Presencial", value: 1480180 },
-    { name: "iFood", value: 1164520 },
-    { name: "Rappi", value: 604615 },
-    { name: "Uber Eats", value: 276894 },
-    { name: "WhatsApp", value: 193976 },
-    { name: "App Próprio", value: 89479 },
-  ];
+  const [storeFilterRevenue, setStoreFilterRevenue] = useState(stores[0]);
+  const [storeFilterAvgTicket, setStoreFilterAvgTicket] = useState(stores[0]);
+  const [storeFilterDelivery, setStoreFilterDelivery] = useState(stores[0]);
+  const [storeFilterLastOrders, setStoreFilterLastOrders] = useState(stores[0]);
+  const [channelFilterLastOrders, setChannelFilterLastOrders] = useState("");
 
-  const avgTicketByChannel = [
-    { name: "Presencial", value: 90 },
-    { name: "iFood", value: 80 },
-    { name: "Rappi", value: 75 },
-    { name: "Uber Eats", value: 70 },
-    { name: "WhatsApp", value: 60 },
-    { name: "App Próprio", value: 55 },
-  ];
+  const [revenueByChannel, setRevenueByChannel] = useState([]);
+  const [avgTicketData, setAvgTicketData] = useState([]);
+  const [deliveryVsPresencial, setDeliveryVsPresencial] = useState([]);
+  const [deliveryRate, setDeliveryRate] = useState(0);
+  const [lastOrdersByChannel, setLastOrdersByChannel] = useState({});
 
-  const deliveryVsPresencial = [
-    { day: "Seg", Presencial: 200, Delivery: 150 },
-    { day: "Ter", Presencial: 180, Delivery: 160 },
-    { day: "Qua", Presencial: 220, Delivery: 140 },
-    { day: "Qui", Presencial: 210, Delivery: 170 },
-    { day: "Sex", Presencial: 250, Delivery: 200 },
-  ];
-
-  const deliveryRate = 92; // %
-
-  // Mock Data para tabela: últimos 5 pedidos de cada canal
-  const lastOrdersByChannel = {
-    "Presencial": [
-      { order: 201, customer: "Cliente A", store: "Loja 1", status: "Entregue", time: "20 min" },
-      { order: 202, customer: "Cliente B", store: "Loja 2", status: "Pendente", time: "-" },
-      { order: 203, customer: "Cliente C", store: "Loja 1", status: "Entregue", time: "25 min" },
-      { order: 204, customer: "Cliente D", store: "Loja 3", status: "Entregue", time: "22 min" },
-      { order: 205, customer: "Cliente E", store: "Loja 2", status: "Entregue", time: "30 min" },
-    ],
-    "iFood": [
-      { order: 301, customer: "Cliente F", store: "Loja 1", status: "Entregue", time: "18 min" },
-      { order: 302, customer: "Cliente G", store: "Loja 3", status: "Entregue", time: "21 min" },
-      { order: 303, customer: "Cliente H", store: "Loja 2", status: "Entregue", time: "19 min" },
-      { order: 304, customer: "Cliente I", store: "Loja 4", status: "Pendente", time: "-" },
-      { order: 305, customer: "Cliente J", store: "Loja 5", status: "Entregue", time: "20 min" },
-    ],
+  const loadRevenueByChannel = async () => {
+    try {
+      const store_id = stores.indexOf(storeFilterRevenue) + 1;
+      const data = await salesCountByChannel({ store_id });
+      setRevenueByChannel(
+        data.map(d => ({ name: d.channel_name, value: parseInt(d.total_sales) }))
+      );
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const [selectedChannel, setSelectedChannel] = useState("Presencial");
+  const loadAvgTicketByChannel = async () => {
+    try {
+      const store_id = stores.indexOf(storeFilterAvgTicket) + 1;
+      const data = await avgTicketByChannel({ store_id });
+      setAvgTicketData(
+        data.map(d => ({
+          name: d.channel_name,
+          value: parseFloat(d.avg_ticket).toFixed(2),
+        }))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
-  // Filtra pedidos pelo canal e pela loja
-  const displayedOrders = lastOrdersByChannel[selectedChannel]?.filter(
-    (order) => selectedStore === "Todas" || order.store === selectedStore
+  const loadDeliveryVsPresencial = async () => {
+    try {
+      const store_id = stores.indexOf(storeFilterDelivery) + 1;
+      const data = await getDeliveryVsPresencial({ store_id });
+      const deliveryTotal = data.find(d => d.type === "Delivery")?.total_orders || 0;
+      const presencialTotal = data.find(d => d.type === "Presencial")?.total_orders || 0;
+      setDeliveryVsPresencial([{ day: "Total", Presencial: parseInt(presencialTotal), Delivery: parseInt(deliveryTotal) }]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadDeliveryRate = async () => {
+    try {
+      const data = await getDeliveryRate();
+      setDeliveryRate(parseFloat(data.delivery_rate).toFixed(2));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadLastOrders = async () => {
+    try {
+      const store_id = stores.indexOf(storeFilterLastOrders) + 1;
+      const data = await getLastOrders({ store_id });
+      const grouped = {};
+      data.forEach(d => {
+        if (!grouped[d.channel_name]) grouped[d.channel_name] = [];
+        grouped[d.channel_name].push({
+          order: d.order_id,
+          customer: d.customer_name,
+          store: `Loja ${d.store_id}`,
+          status: "Entregue",
+          time: "-",
+        });
+      });
+      setLastOrdersByChannel(grouped);
+
+      if (!channelFilterLastOrders) setChannelFilterLastOrders(Object.keys(grouped)[0] || "");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // --- useEffect para carregar dados ---
+  useEffect(() => { loadRevenueByChannel(); }, [storeFilterRevenue]);
+  useEffect(() => { loadAvgTicketByChannel(); }, [storeFilterAvgTicket]);
+  useEffect(() => { loadDeliveryVsPresencial(); }, [storeFilterDelivery]);
+  useEffect(() => { loadDeliveryRate(); }, []);
+  useEffect(() => { loadLastOrders(); }, [storeFilterLastOrders]);
+
+  const displayedOrders = lastOrdersByChannel[channelFilterLastOrders]?.filter(
+    order => order.store === storeFilterLastOrders
   ) || [];
 
   return (
     <DashboardContainer>
-      {/* Linha de gráficos KPI */}
       <ChartsRow>
         <ChartBox>
           <SectionTitle>Vendas por Canal</SectionTitle>
-          <FilterSelect
-            value={selectedStore}
-            onChange={(e) => setSelectedStore(e.target.value)}
-          >
-            {mockStores.map((store) => (
-              <option key={store} value={store}>{store}</option>
-            ))}
+          <FilterSelect value={storeFilterRevenue} onChange={e => setStoreFilterRevenue(e.target.value)}>
+            {stores.map(store => <option key={store}>{store}</option>)}
           </FilterSelect>
-
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie
@@ -175,11 +217,11 @@ function ChannelsDashboard() {
                 dataKey="value"
                 nameKey="name"
                 innerRadius={40}
-                outerRadius={80}
+                outerRadius={70}
                 label
               >
                 {revenueByChannel.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
               <Legend />
@@ -190,27 +232,33 @@ function ChannelsDashboard() {
 
         <ChartBox>
           <SectionTitle>Ticket Médio por Canal</SectionTitle>
+          <FilterSelect value={storeFilterAvgTicket} onChange={e => setStoreFilterAvgTicket(e.target.value)}>
+            {stores.map(store => <option key={store}>{store}</option>)}
+          </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={avgTicketByChannel} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <BarChart data={avgTicketData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#4f46e5" />
+              <XAxis dataKey="name" angle={-15} textAnchor="end" interval={0} tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={val => `R$ ${Number(val).toLocaleString("pt-BR", {minimumFractionDigits:2})}`} />
+              <Tooltip formatter={val => `R$ ${Number(val).toLocaleString("pt-BR", {minimumFractionDigits:2})}`} />
+              <Bar dataKey="value" fill="#4f46e5" name="Valor"/>
             </BarChart>
           </ResponsiveContainer>
         </ChartBox>
 
         <ChartBox>
           <SectionTitle>Delivery vs Presencial</SectionTitle>
+          <FilterSelect value={storeFilterDelivery} onChange={e => setStoreFilterDelivery(e.target.value)}>
+            {stores.map(store => <option key={store}>{store}</option>)}
+          </FilterSelect>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={deliveryVsPresencial} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <BarChart data={deliveryVsPresencial}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="Presencial" stackId="a" fill="#4f46e5" />
-              <Bar dataKey="Delivery" stackId="a" fill="#10b981" />
+              <Bar dataKey="Presencial" stackId="a" fill="#4f46e5" name="Presencial (pedidos)"/>
+              <Bar dataKey="Delivery" stackId="a" fill="#10b981" name="Delivery (pedidos)"/>
             </BarChart>
           </ResponsiveContainer>
         </ChartBox>
@@ -224,28 +272,24 @@ function ChannelsDashboard() {
         </ChartBox>
       </ChartsRow>
 
-      {/* Tabela de últimos pedidos por canal e loja */}
       <ChartBox style={{ flex: "1 1 100%" }}>
         <SectionTitle>
           Últimos 5 Pedidos
           <FilterSelect
-            value={selectedChannel}
-            onChange={(e) => setSelectedChannel(e.target.value)}
+            value={channelFilterLastOrders}
+            onChange={e => setChannelFilterLastOrders(e.target.value)}
             style={{ marginLeft: "10px" }}
           >
-            {Object.keys(lastOrdersByChannel).map((channel) => (
-              <option key={channel} value={channel}>{channel}</option>
+            {Object.keys(lastOrdersByChannel).map(channel => (
+              <option key={channel}>{channel}</option>
             ))}
           </FilterSelect>
-
           <FilterSelect
-            value={selectedStore}
-            onChange={(e) => setSelectedStore(e.target.value)}
+            value={storeFilterLastOrders}
+            onChange={e => setStoreFilterLastOrders(e.target.value)}
             style={{ marginLeft: "10px" }}
           >
-            {mockStores.map((store) => (
-              <option key={store} value={store}>{store}</option>
-            ))}
+            {stores.map(store => <option key={store}>{store}</option>)}
           </FilterSelect>
         </SectionTitle>
 
@@ -260,7 +304,7 @@ function ChannelsDashboard() {
             </tr>
           </thead>
           <tbody>
-            {displayedOrders.map((order) => (
+            {displayedOrders.slice(0, 5).map(order => (
               <tr key={order.order}>
                 <TableCell>{order.order}</TableCell>
                 <TableCell>{order.customer}</TableCell>
