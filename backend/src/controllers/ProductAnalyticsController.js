@@ -171,31 +171,32 @@ const ProductAnalyticsController = {
   lowTurnoverProducts: async (req, res) => {
     try {
       const { store_id, start_date, end_date, limit = 10 } = req.query;
+
       let whereClause = "WHERE 1=1";
-      if (store_id) whereClause += ` AND ps.store_id = ${store_id}`;
-      if (start_date) whereClause += ` AND ps.created_at >= '${start_date}'`;
-      if (end_date) whereClause += ` AND ps.created_at <= '${end_date}'`;
+      if (store_id) whereClause += ` AND s.store_id = ${store_id}`;
+      if (start_date) whereClause += ` AND s.created_at >= '${start_date}'`;
+      if (end_date) whereClause += ` AND s.created_at <= '${end_date}'`;
 
       const query = `
         SELECT 
-          p.name AS product_name,
+          i.name AS product_name,
           SUM(ips.quantity) AS total_sold
         FROM item_product_sales ips
         JOIN product_sales ps ON ps.id = ips.product_sale_id
-        JOIN products p ON p.id = ps.product_id
         JOIN sales s ON s.id = ps.sale_id
-        WHERE 1=1
-          AND s.store_id = 1
-        GROUP BY p.name
-        ORDER BY total_sold ASC
-        LIMIT 10
+        JOIN items i ON i.id = ips.item_id
+        ${whereClause}
+        GROUP BY i.name
+        ORDER BY total_sold DESC
+        LIMIT ${limit};
       `;
+
       const results = await sequelize.query(query, { type: QueryTypes.SELECT });
       res.json(results);
 
     } catch (err) {
       console.error(err);
-      res.status(500).json({ error: "Erro ao buscar produtos com baixo giro" });
+      res.status(500).json({ error: "Erro ao buscar customizações mais pedidas" });
     }
   }
 };

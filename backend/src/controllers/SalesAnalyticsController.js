@@ -52,26 +52,24 @@ const SalesAnalyticsController = {
 
   ticketAverage: async (req, res) => {
     try {
-      const { store_id, channel_id, start_date, end_date } = req.query;
+      const { store_id, startDate, endDate } = req.query; // <-- usar camelCase
+
       let whereClause = "WHERE 1=1";
       if (store_id) whereClause += ` AND s.store_id = ${store_id}`;
-      if (channel_id) whereClause += ` AND s.channel_id = ${channel_id}`;
-      if (start_date) whereClause += ` AND s.created_at >= '${start_date}'`;
-      if (end_date) whereClause += ` AND s.created_at <= '${end_date}'`;
+      if (startDate) whereClause += ` AND s.created_at >= '${startDate}'`;
+      if (endDate) whereClause += ` AND s.created_at <= '${endDate}'`;
 
       const query = `
         SELECT 
           s.store_id,
           st.name AS store_name,
-          s.channel_id,
-          c.name AS channel_name,
-          AVG(s.total_amount) AS avg_ticket
+          DATE(s.created_at) AS sale_date,
+          ROUND(AVG(s.total_amount), 2) AS avg_ticket
         FROM sales s
         JOIN stores st ON st.id = s.store_id
-        JOIN channels c ON c.id = s.channel_id
         ${whereClause}
-        GROUP BY s.store_id, st.name, s.channel_id, c.name
-        ORDER BY s.store_id, s.channel_id;
+        GROUP BY s.store_id, st.name, DATE(s.created_at)
+        ORDER BY sale_date;
       `;
 
       const results = await sequelize.query(query, { type: QueryTypes.SELECT });
@@ -82,6 +80,7 @@ const SalesAnalyticsController = {
       res.status(500).json({ error: "Erro ao calcular ticket médio" });
     }
   },
+
 
   deliveryTimes: async (req, res) => {
     try {

@@ -116,17 +116,18 @@ const PaymentAnalyticsController = {
         if (store_id) whereClause += ` AND s.store_id = ${store_id}`;
 
         const query = `
-        SELECT 
+          SELECT 
             s.id AS order_id,
             s.customer_name AS customer,
             pt.description AS payment_method,
-            ROUND(p.value, 2) AS total_amount
-        FROM sales s
-        LEFT JOIN payments p ON p.sale_id = s.id
-        LEFT JOIN payment_types pt ON pt.id = p.payment_type_id
-        ${whereClause}
-        ORDER BY s.created_at DESC
-        LIMIT 5;
+            ROUND(p.value, 2) AS total_amount,
+              s.created_at AS cancelled_at
+          FROM sales s
+          LEFT JOIN payments p ON p.sale_id = s.id
+          LEFT JOIN payment_types pt ON pt.id = p.payment_type_id
+          ${whereClause}
+          ORDER BY s.created_at DESC
+          LIMIT 5;
         `;
 
         const results = await sequelize.query(query, { type: QueryTypes.SELECT });
